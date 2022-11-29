@@ -1,4 +1,7 @@
 imgs/
 test/
 pdfs/
+parse/
 *.xlsx
+*.jpg
+__pycache__/
