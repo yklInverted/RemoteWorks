@@ -143,8 +143,8 @@ class TableSplitter():
 
         #对于第i个交点像素，找到对应的横线和竖线
         data_dict = {}
-        data_list = []
-        for i in range(len(myys)):
+        data_list = [] #应给用set，存的是像素坐标下所有不重复交点
+        for i in range(len(ys)):
             for m in mylisty:
                 for n in mylistx:
                     if abs(m - ys[i]) < self._params_dot_margin and abs(n - xs[i]) < self._params_dot_margin and (m, n) not in data_list:
@@ -153,30 +153,41 @@ class TableSplitter():
         print('data_list', data_list)
         print(len(data_list))
 
+        #按先行后列排序，写的真的史，data_dict key是行编号，value是该行上所有交点像素坐标（y,x)组成的list
         for m in range(len(mylisty)):
             line_list = []
-            for i in data_list:
-                if i[0] == mylisty[m]:
-                    line_list.append(i)
+            for point in data_list:
+                if point[0] == mylisty[m]:
+                    line_list.append(point)
             data_dict[m] = sorted(line_list, key=lambda x: x[1])
         print('data_dict', data_dict)
 
 
+
         img_dict = {}
+        #按行遍历，i为行编号
         for i in range(len(data_dict) - 1):
+            #index - 交点列编号，value - 交点坐标
             for index, value in enumerate(data_dict[i]):
-                m = i
+                
                 if index == len(data_dict[i]) - 1:
+                    #最后一列无法再和后面组成表格了，break
                     break
-
+                
+                #按列遍历
                 for nn in range(1, len(data_dict[i])):
-                    m = i
-                    mark_num = 0
-                    n = index + nn
-                    if n == len(data_dict[i]):
-                        break
 
-                    while m <= len(data_dict)-2:                      # recognize_line(line_xs, line_ys, 161, 57, 88)
+                    
+                    mark_num = 0
+                    n = index + nn #表格第二列
+                    if n == len(data_dict[i]):
+                        #弱智代码
+                        break
+                    
+                    m = i #从当前行开始遍历，真的弱智
+                    while m <= len(data_dict)-2:                    
+
+                        #在后面一行同时有第一列和第二列的交点，且有对应两条横线和竖线
                         if value[1] in [i[1] for i in data_dict[m + 1]] and data_dict[i][n][1] in [i[1] for i in data_dict[m + 1]] and abs(self.recognize_line_x(line_xs, line_ys, value[1], value[0], data_dict[m + 1][0][0])- (data_dict[m + 1][0][0] - value[0])) <= self._params_line_y and abs(self.recognize_line_x(line_xs, line_ys, data_dict[i][n][1], value[0], data_dict[m + 1][0][0])- (data_dict[m + 1][0][0] - value[0])) <= self._params_line_y and abs(self.recognize_line_y(line_xs, line_ys, value[0], value[1], data_dict[i][n][1]) - (data_dict[i][n][1] - value[1])) <= self._params_line_x and abs(self.recognize_line_y(line_xs, line_ys, data_dict[m + 1][0][0], value[1], data_dict[i][n][1]) - (data_dict[i][n][1] - value[1])) <= self._params_line_x:
                             mark_num = 1
                             ROI = image[value[0]:data_dict[m + 1][0][0], value[1]:data_dict[i][n][1]]
