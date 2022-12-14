@@ -23,14 +23,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--pdfdir", type=str, required= True, help='path to the PDF file you want to convert')
+    parser.add_argument("--popplerdir", type=str, default="D:\\Program Files\\poppler-22.11.0\\Library\\bin", help='path to poppler')
     parser.add_argument("--exceldir", type=str, default=None, help='path to save the excel output, save to current directory by default')
     parser.add_argument('--lang', type=str,default='chi_sim+deu', help='Language(s) used in your PDF,the order indicates priority')
     parser.add_argument('--page', type=int, default=None, help='which page do you want to convert? Convert all pages by default, but could take quite some time~')
     parser.add_argument('--scale', type=int, default=50, help='See utils.py for more info')
 
+
     args = parser.parse_args()
     
-    imgs = pdf2imgs(args.pdfdir)
+    imgs = pdf2imgs(args.pdfdir, poppler_path=args.popplerdir)
     splitter = TableSplitter(args.scale)
 
     if args.page == None:
@@ -38,8 +40,9 @@ if __name__ == "__main__":
         for img in imgs:
             dict = splitter.split_image(img)
             write_excel(dict, f'./page-{i}.xlsx')
+            i += 1
     else:
         dict = splitter.split_image(imgs[args.page - 1])
-        write_excel(dict, f'./page-{args.page - 1}.xlsx')
+        write_excel(dict, f'./page-{args.page}.xlsx')
     
     
