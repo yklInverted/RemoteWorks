@@ -18,39 +18,50 @@ def img2text(image, language = 'chi_sim+deu', config = '--psm 6'):
 
 class TableSplitter():
 
-    def __init__(self, scale = 25, params_margin_x = 20, params_margin_y = 20, params_dot_margin = 3, params_line_x = 20, params_line_y = 20) -> None:
+    def __init__(self, scale = 25, params_margin_x = 20, params_margin_y = 20, params_dot_margin = 10, params_line_x = 20, params_line_y = 20) -> None:
         
         self._scale = scale #表格中横线或竖线最短像素长度
         self._params_margin_x = params_margin_x # 竖线最小间距
         self._params_margin_y = params_margin_y # 横线最小间距
-        self._params_dot_margin = params_dot_margin # 和平均线的偏移量（对缝隙起作用，可去除点，也可变为独立一个点） 太大：被当成另一条直线上，太小：不把它当成一个独立的点
+        self._params_dot_margin = params_dot_margin # 同一条线上不同交点位置之间的横/纵坐标偏移量,当表格线有倾斜的时候要适当加大
         self._params_line_x = params_line_x # x上点个数的差值调节（线不均匀，有的粗有的细，甚至有的不连续）
         self._params_line_y = params_line_y # y上点个数的差值调节（线不均匀，有的粗有的细，甚至有的不连续）
 
 
     def recognize_line_x(self, line_xs, line_ys, num, num1, num2):
+        '''
+        Args:
+            line_xs, line_ys: 所有为表格线的像素点坐标(y,x)
+            num: 当前交点x坐标
+            num1: 当前交点y坐标
+            num2 另一行y坐标
+        '''
         y_line_list = []
+        offset = 5
+    
+        for i in range(len(line_xs)):
 
-        for k in [-3, -2, -1, 0, 1, 2, 3]:
-            for i in range(len(line_xs)):
-                if line_xs[i] == num + k:
-                    if line_ys[i] >= num1 and line_ys[i] <= num2 and line_ys[i] not in y_line_list:
-                        y_line_list.append(line_ys[i])
+            #若像素点在该列
+            if line_xs[i] <= num + offset and line_xs[i] >= num - offset:
+                #若像素点同时在指定两行中间，则加入list
+                if line_ys[i] >= num1 and line_ys[i] <= num2 and line_ys[i] not in y_line_list:
+                    y_line_list.append(line_ys[i])
         len_list = len(y_line_list)
-
-        return len_list
+        
+        return abs(len_list - (num2 - num1)) <= self._params_line_y
 
 
     def recognize_line_y(self, line_xs, line_ys, num, num1, num2):
         x_line_list = []
-        for k in [-3, -2, -1, 0, 1, 2, 3]:
-            for i in range(len(line_xs)):
-                if line_ys[i] == num + k:
-                    if line_xs[i] >= num1 and line_xs[i] <= num2 and line_xs[i] not in x_line_list:
-                        x_line_list.append(line_xs[i])
+        offset = 5
+
+        for i in range(len(line_xs)):
+            if line_ys[i] <= num + offset and line_ys[i] >= num - offset:
+                if line_xs[i] >= num1 and line_xs[i] <= num2 and line_xs[i] not in x_line_list:
+                    x_line_list.append(line_xs[i])
         len_list = len(x_line_list)
 
-        return len_list
+        return abs(len_list - (num2 - num1)) <= self._params_line_x
 
 
     def split_image(self, image):
@@ -167,7 +178,8 @@ class TableSplitter():
         img_dict = {}
         #按行遍历，i为行编号
         for i in range(len(data_dict) - 1):
-            #index - 交点列编号，value - 交点坐标
+            #index - 交点列编号，value - 交点坐标（y,x）
+            print(f'开始第{i+1}行')
             for index, value in enumerate(data_dict[i]):
                 
                 if index == len(data_dict[i]) - 1:
@@ -185,10 +197,27 @@ class TableSplitter():
                         break
                     
                     m = i #从当前行开始遍历，真的弱智
-                    while m <= len(data_dict)-2:                    
+                    while m < len(data_dict)-1:                    
 
                         #在后面一行同时有第一列和第二列的交点，且有对应两条横线和竖线
-                        if value[1] in [i[1] for i in data_dict[m + 1]] and data_dict[i][n][1] in [i[1] for i in data_dict[m + 1]] and abs(self.recognize_line_x(line_xs, line_ys, value[1], value[0], data_dict[m + 1][0][0])- (data_dict[m + 1][0][0] - value[0])) <= self._params_line_y and abs(self.recognize_line_x(line_xs, line_ys, data_dict[i][n][1], value[0], data_dict[m + 1][0][0])- (data_dict[m + 1][0][0] - value[0])) <= self._params_line_y and abs(self.recognize_line_y(line_xs, line_ys, value[0], value[1], data_dict[i][n][1]) - (data_dict[i][n][1] - value[1])) <= self._params_line_x and abs(self.recognize_line_y(line_xs, line_ys, data_dict[m + 1][0][0], value[1], data_dict[i][n][1]) - (data_dict[i][n][1] - value[1])) <= self._params_line_x:
+                        if value[1] in [i[1] for i in data_dict[m + 1]] and data_dict[i][n][1] in [i[1] for i in data_dict[m + 1]]:
+                            if not self.recognize_line_x(line_xs, line_ys, value[1], value[0], data_dict[m + 1][0][0]):
+                                print('没有第一条竖线')
+                                m += 1
+                                continue
+                            if not self.recognize_line_x(line_xs, line_ys, data_dict[i][n][1], value[0], data_dict[m + 1][0][0]):
+                                print('没有第二条竖线')
+                                m += 1
+                                continue
+                            if not self.recognize_line_y(line_xs, line_ys, value[0], value[1], data_dict[i][n][1]):
+                                print('没有第一条横线')
+                                m += 1
+                                continue
+                            if not self.recognize_line_y(line_xs, line_ys, data_dict[m + 1][0][0], value[1], data_dict[i][n][1]):
+                                print('没有第二条横线')
+                                m += 1
+                                continue
+
                             mark_num = 1
                             ROI = image[value[0]:data_dict[m + 1][0][0], value[1]:data_dict[i][n][1]]
 
